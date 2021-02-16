@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="4.0.0-beta.74" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.2" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="LibDgf">
+      <HintPath>..\..\LibDgf\LibDgf\bin\Debug\netstandard2.0\LibDgf.dll</HintPath>
+    </Reference>
+    <Reference Include="LibDgf.Graphics">
+      <HintPath>..\..\LibDgf\LibDgf.Graphics\bin\Debug\netstandard2.0\LibDgf.Graphics.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
