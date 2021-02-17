@@ -47,11 +47,13 @@ namespace DgfTxmConvert
 
                 var datPathArg = config.Argument("datPath", "Path of the DAT to extract").IsRequired();
                 datPathArg.Accepts().ExistingFile();
+                var outBaseArg = config.Argument("outBase", "Directory to write extracted files");
+                outBaseArg.Accepts().LegalFilePath();
                 config.HelpOption();
 
                 config.OnExecute(() =>
                 {
-                    ConvertDat(datPathArg.Value);
+                    ConvertDat(datPathArg.Value, outBaseArg.Value);
                 });
             });
 
@@ -62,11 +64,13 @@ namespace DgfTxmConvert
 
                 var txmPathArg = config.Argument("txmPath", "Path of the TXM to convert").IsRequired();
                 txmPathArg.Accepts().ExistingFile();
+                var outPathArg = config.Argument("outPath", "Path of converted PNG");
+                outPathArg.Accepts().LegalFilePath();
                 config.HelpOption();
 
                 config.OnExecute(() =>
                 {
-                    ConvertTxm(txmPathArg.Value);
+                    ConvertTxm(txmPathArg.Value, outPathArg.Value);
                 });
             });
 
@@ -163,8 +167,10 @@ namespace DgfTxmConvert
         }
 
 
-        static void ConvertDat(string path)
+        static void ConvertDat(string path, string outBase = null)
         {
+            if (outBase == null) outBase = Path.GetDirectoryName(path);
+            Directory.CreateDirectory(outBase);
             using (Stream fs = Utils.CheckDecompress(File.OpenRead(path)))
             using (DatReader dat = new DatReader(fs))
             {
@@ -172,7 +178,7 @@ namespace DgfTxmConvert
                 {
                     using (MemoryStream subfile = new MemoryStream(dat.GetData(i)))
                     {
-                        string outPath = path + $"_{i}.png";
+                        string outPath = Path.Combine(outBase, Path.GetFileName(path + $"_{i}.png"));
                         Console.WriteLine(outPath);
                         try
                         {
@@ -196,11 +202,11 @@ namespace DgfTxmConvert
             }
         }
 
-        static void ConvertTxm(string path)
+        static void ConvertTxm(string path, string outPath = null)
         {
             using (Stream fs = Utils.CheckDecompress(File.OpenRead(path)))
             {
-                string outPath = Path.ChangeExtension(path, ".png");
+                if (outPath == null) outPath = Path.ChangeExtension(path, ".png");
                 TxmConversion.ConvertTxmToPng(fs, outPath);
             }
         }
