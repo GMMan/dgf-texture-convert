@@ -128,7 +128,8 @@ namespace DgfTxmConvert
                     {
                         while (!sr.EndOfStream)
                         {
-                            var line = sr.ReadLine();
+                            var line = sr.ReadLine().Trim();
+                            if (line.StartsWith("#")) continue;
                             var lineSplit = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                             if (lineSplit.Length != 2)
                                 throw new InvalidDataException($"Invalid line \"{line}\".");
