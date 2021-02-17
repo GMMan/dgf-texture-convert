@@ -1,21 +1,19 @@
-﻿using LibDgf.Dat;
+﻿using LibDgf;
+using LibDgf.Aqualead.Image;
+using LibDgf.Aqualead.Image.Conversion;
+using LibDgf.Aqualead.Texture;
+using LibDgf.Dat;
+using LibDgf.Graphics;
+using LibDgf.Txm;
+using McMaster.Extensions.CommandLineUtils;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using Path = System.IO.Path;
-using LibDgf.Aqualead;
-using LibDgf.Aqualead.Image.Conversion;
-using LibDgf;
-using LibDgf.Txm;
-using LibDgf.Aqualead.Image;
-using LibDgf.Aqualead.Texture;
-using System.Diagnostics;
-using SixLabors.ImageSharp.Processing;
-using LibDgf.Graphics;
-using System.Threading.Tasks;
-using McMaster.Extensions.CommandLineUtils;
 
 namespace DgfTxmConvert
 {
@@ -137,11 +135,27 @@ namespace DgfTxmConvert
                             if (!int.TryParse(lineSplit[0], out var imageIndex))
                                 throw new InvalidDataException($"Invalid index on line \"{line}\".");
 
+                            byte level = 1;
+                            short bufferBase = 0;
+                            short paletteBufferBase = 0;
+
+                            if (imageIndex < dat.EntriesCount)
+                            {
+                                using (MemoryStream ms = new MemoryStream(dat.GetData(imageIndex)))
+                                {
+                                    TxmHeader txm = new TxmHeader();
+                                    txm.Read(new BinaryReader(ms));
+                                    level = (byte)(txm.Misc & 0x0f);
+                                    bufferBase = txm.ImageBufferBase;
+                                    paletteBufferBase = txm.ClutBufferBase;
+                                }
+                            }
+
                             string tempPath = Path.GetTempFileName();
                             tempPaths.Add(tempPath);
                             using (FileStream fs = File.Create(tempPath))
                             {
-                                TxmConversion.ConvertImageToTxm(lineSplit[1], fs);
+                                TxmConversion.ConvertImageToTxm(lineSplit[1], fs, level, bufferBase, paletteBufferBase);
                             }
 
                             builder.ReplacementEntries.Add(new DatBuilder.ReplacementEntry
