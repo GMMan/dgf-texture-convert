@@ -160,11 +160,12 @@ namespace DgfTxmConvert
                 txmPathArg.Accepts().ExistingFile();
                 var outBaseArg = config.Argument("outBase", "Directory to write converted files");
                 outBaseArg.Accepts().LegalFilePath();
+                var forceTexDirectOption = config.Option("--forceTexDirect", "Convert TXM as is without trying PS2 texture unpack", CommandOptionType.NoValue);
                 config.HelpOption();
 
                 config.OnExecute(() =>
                 {
-                    ExtractPdb(pdbPathArg.Value, txmPathArg.Value, outBaseArg.Value);
+                    ExtractPdb(pdbPathArg.Value, txmPathArg.Value, outBaseArg.Value, forceTexDirectOption.HasValue());
                 });
             });
 
@@ -609,7 +610,7 @@ namespace DgfTxmConvert
             }
         }
 
-        static void ExtractPdb(string pdbPath, string txmPath, string basePath = null)
+        static void ExtractPdb(string pdbPath, string txmPath, string basePath = null, bool forceDirect = false)
         {
             if (basePath == null)
                 basePath = Path.ChangeExtension(pdbPath, null);
@@ -636,7 +637,7 @@ namespace DgfTxmConvert
 
             using (StreamWriter sw = File.CreateText(mtlPath))
             {
-                converter.ExportTextures(sw, basePath + ".");
+                converter.ExportTextures(sw, basePath + ".", forceDirect);
             }
         }
 
