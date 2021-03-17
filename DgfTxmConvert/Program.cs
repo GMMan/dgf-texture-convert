@@ -3,7 +3,10 @@ using LibDgf.Aqualead.Image;
 using LibDgf.Aqualead.Image.Conversion;
 using LibDgf.Aqualead.Texture;
 using LibDgf.Dat;
+using LibDgf.Font;
 using LibDgf.Graphics;
+using LibDgf.Graphics.Mesh;
+using LibDgf.Mesh;
 using LibDgf.Txm;
 using McMaster.Extensions.CommandLineUtils;
 using SixLabors.ImageSharp;
@@ -13,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using Path = System.IO.Path;
 
 namespace DgfTxmConvert
@@ -25,6 +29,7 @@ namespace DgfTxmConvert
 
         static int Main(string[] args)
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             imageConverters = new List<IAlImageConverter>
             {
                 new PkmConverter(),
@@ -91,6 +96,78 @@ namespace DgfTxmConvert
                 });
             });
 
+            app.Command("dump-font", config =>
+            {
+                config.FullName = "Dump kanji font";
+                config.Description = "Extracts all characters from kanji font pack.";
+
+                var pakPath = config.Argument("pakPath", "Path of the kanji pack").IsRequired();
+                pakPath.Accepts().ExistingFile();
+                var txmPath = config.Argument("txmPath", "Path of the kana TXM").IsRequired();
+                txmPath.Accepts().ExistingFile();
+                var outputPath = config.Argument("outputPath", "Path of directory to extract character images to");
+                txmPath.Accepts().LegalFilePath();
+                config.HelpOption();
+
+                config.OnExecute(() =>
+                {
+                    ExtractFontPack(pakPath.Value, txmPath.Value, outputPath.Value);
+                });
+            });
+
+            app.Command("extract-dat", config =>
+            {
+                config.FullName = "Extracts DAT";
+                config.Description = "Extracts files from DAT.";
+
+                var datPathArg = config.Argument("datPath", "Path of the DAT to extract").IsRequired();
+                datPathArg.Accepts().ExistingFile();
+                var outBaseArg = config.Argument("outBase", "Directory to write extracted files");
+                outBaseArg.Accepts().LegalFilePath();
+                config.HelpOption();
+
+                config.OnExecute(() =>
+                {
+                    ExtractDat(datPathArg.Value, outBaseArg.Value);
+                });
+            });
+
+            app.Command("convert-trm", config =>
+            {
+                config.FullName = "Converts TRM";
+                config.Description = "Converts train models.";
+
+                var trmPathArg = config.Argument("trmPath", "Path of the train model to extract").IsRequired();
+                trmPathArg.Accepts().ExistingFile();
+                var outBaseArg = config.Argument("outBase", "Directory to write converted files");
+                outBaseArg.Accepts().LegalFilePath();
+                config.HelpOption();
+
+                config.OnExecute(() =>
+                {
+                    ExtractTrm(trmPathArg.Value, outBaseArg.Value);
+                });
+            });
+
+            app.Command("convert-pdb", config =>
+            {
+                config.FullName = "Converts PDB";
+                config.Description = "Converts PDB models.";
+
+                var pdbPathArg = config.Argument("pdbPath", "Path of the model pack to extract").IsRequired();
+                pdbPathArg.Accepts().ExistingFile();
+                var txmPathArg = config.Argument("txmPath", "Path of the associated texture pack").IsRequired();
+                txmPathArg.Accepts().ExistingFile();
+                var outBaseArg = config.Argument("outBase", "Directory to write converted files");
+                outBaseArg.Accepts().LegalFilePath();
+                config.HelpOption();
+
+                config.OnExecute(() =>
+                {
+                    ExtractPdb(pdbPathArg.Value, txmPathArg.Value, outBaseArg.Value);
+                });
+            });
+
             app.VersionOptionFromAssemblyAttributes(System.Reflection.Assembly.GetExecutingAssembly());
             app.HelpOption();
 
@@ -116,6 +193,19 @@ namespace DgfTxmConvert
             }
         }
 
+        static void ExtractDat(string datPath, string outBase)
+        {
+            if (outBase == null) outBase = Path.GetDirectoryName(datPath);
+            using (DatReader dat = new DatReader(Utils.CheckDecompress(File.OpenRead(datPath))))
+            {
+                for (int i = 0; i < dat.EntriesCount; ++i)
+                {
+                    string outPath = Path.Combine(outBase, Path.GetFileName(datPath + $"_{i}.bin"));
+                    File.WriteAllBytes(outPath, dat.GetData(i));
+                }
+            }
+        }
+
         static void ReplaceDatImages(string srcDatPath, string destDatPath, string replacementList)
         {
             List<string> tempPaths = new List<string>();
@@ -137,8 +227,8 @@ namespace DgfTxmConvert
                                 throw new InvalidDataException($"Invalid index on line \"{line}\".");
 
                             byte level = 1;
-                            short bufferBase = 0;
-                            short paletteBufferBase = 0;
+                            ushort bufferBase = 0;
+                            ushort paletteBufferBase = 0;
 
                             if (imageIndex < dat.EntriesCount)
                             {
@@ -418,6 +508,102 @@ namespace DgfTxmConvert
             }
 
             throw new Exception($"Cannot find converter for {img.PixelFormat}");
+        }
+
+        static void ExtractFontPack(string pakPath, string txmPath, string basePath)
+        {
+            if (basePath == null) basePath = pakPath + "_extracted";
+            using (Stream fs = Utils.CheckDecompress(File.OpenRead(txmPath)))
+            using (Stream datFs = Utils.CheckDecompress(File.OpenRead(pakPath)))
+            {
+                var fontTxmHeader = new TxmHeader();
+                BinaryReader br = new BinaryReader(fs);
+                fontTxmHeader.Read(br);
+                var palette = TxmConversion.ReadRgba32Palette(br, fontTxmHeader.ClutWidth, fontTxmHeader.ClutHeight);
+
+                var fontPak = new FontPack();
+                fontPak.Read(datFs);
+                Directory.CreateDirectory(basePath);
+
+                foreach (var ch in fontPak.Characters)
+                {
+                    using MemoryStream ms = new MemoryStream(fontPak[ch]);
+                    BinaryReader charBr = new BinaryReader(ms);
+                    using (var img = TxmConversion.ConvertTxmIndexed4bpp(charBr, 24, 22, palette))
+                    {
+                        img.SaveAsPng(Path.Combine(basePath, $"{ch}.png"));
+                    }
+                }
+            }
+        }
+
+        static void ExtractTrm(string trmPath, string basePath = null)
+        {
+            if (basePath == null)
+                basePath = Path.ChangeExtension(trmPath, null);
+            else
+                basePath = Path.Combine(basePath, Path.GetFileNameWithoutExtension(trmPath));
+
+            using DatReader dat = new DatReader(Utils.CheckDecompress(File.OpenRead(trmPath)));
+            // First entry is texture DAT
+            using DatReader txmDat = new DatReader(new MemoryStream(dat.GetData(0)));
+            using ObjConverter converter = new ObjConverter(txmDat);
+            string mtlPath = basePath + ".mtl";
+            string mtlName = Path.GetFileName(mtlPath);
+            // Subsequent entries are train car DATs
+            for (int i = 1; i < dat.EntriesCount; ++i)
+            {
+                using DatReader innerDat = new DatReader(new MemoryStream(dat.GetData(i)));
+                // And within each train car DAT are PDBs
+                for (int j = 0; j < innerDat.EntriesCount; ++j)
+                {
+                    using MemoryStream ms = new MemoryStream(innerDat.GetData(j));
+                    BinaryReader br = new BinaryReader(ms);
+                    Pdb pdb = new Pdb();
+                    pdb.Read(br);
+                    using StreamWriter sw = File.CreateText($"{basePath}.{i}_{j}.obj");
+                    sw.WriteLine($"mtllib {mtlName}");
+                    sw.WriteLine();
+
+                    converter.ConvertObj(pdb, sw);
+                }
+            }
+
+            using (StreamWriter sw = File.CreateText(mtlPath))
+            {
+                converter.ExportTextures(sw, basePath + ".");
+            }
+        }
+
+        static void ExtractPdb(string pdbPath, string txmPath, string basePath = null)
+        {
+            if (basePath == null)
+                basePath = Path.ChangeExtension(pdbPath, null);
+            else
+                basePath = Path.Combine(basePath, Path.GetFileNameWithoutExtension(pdbPath));
+
+            DatReader dat = new DatReader(Utils.CheckDecompress(File.OpenRead(pdbPath)));
+            using DatReader txmDat = new DatReader(Utils.CheckDecompress(File.OpenRead(txmPath)));
+            using ObjConverter converter = new ObjConverter(txmDat);
+            string mtlPath = basePath + ".mtl";
+            string mtlName = Path.GetFileName(mtlPath);
+            for (int i = 0; i < dat.EntriesCount; ++i)
+            {
+                using MemoryStream ms = new MemoryStream(dat.GetData(i));
+                BinaryReader br = new BinaryReader(ms);
+                Pdb pdb = new Pdb();
+                pdb.Read(br);
+                using StreamWriter sw = File.CreateText($"{basePath}.{i}.obj");
+                sw.WriteLine($"mtllib {mtlName}");
+                sw.WriteLine();
+
+                converter.ConvertObj(pdb, sw);
+            }
+
+            using (StreamWriter sw = File.CreateText(mtlPath))
+            {
+                converter.ExportTextures(sw, basePath + ".");
+            }
         }
     }
 }

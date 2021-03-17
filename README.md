@@ -12,6 +12,7 @@ Usage
 The following commands are available. For arguments please use the `--help`
 option.
 
+- `extract-dat`: Unpacks files from .DAT container as-is.
 - `convert-dat`: Unpacks a .DAT container of textures and converts everything
   to PNG.
 - `convert-txm`: Converts a single .TXM file to PNG.
@@ -19,6 +20,10 @@ option.
   Requires a text file with a line for each texture to be replaced, consisting
   of the index number and the path to the corresponding image (can be relative
   to working directory).
+- `dump-font`: Extracts characters from kanji font pack.
+- `convert-trm`: Converts train model file contents to Wavefront OBJ models.
+- `convert-pdb`: Converts other model files to Wavefront OBJ models. Note the
+  corresponding texture DAT needs to be supplied as well.
 
 Other
 -----
