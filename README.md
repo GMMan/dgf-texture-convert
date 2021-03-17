@@ -26,6 +26,8 @@ option.
   corresponding texture DAT needs to be supplied as well.
 - `convert-bg`: Converts sky dome to Wavefront OBJ models. Note only the first
   far texture is extracted.
+- `convert-mapanim`: Converts files from the mapanim folder to Wavefront OBJ
+  models.
 
 Other
 -----

@@ -185,6 +185,23 @@ namespace DgfTxmConvert
                 });
             });
 
+            app.Command("convert-mapanim", config =>
+            {
+                config.FullName = "Converts mapanim files";
+                config.Description = "Converts mapanim models.";
+
+                var mapAnimPathArg = config.Argument("mapAnimPathArg", "Path of the mapanim model to extract").IsRequired();
+                mapAnimPathArg.Accepts().ExistingFile();
+                var outBaseArg = config.Argument("outBase", "Directory to write converted files");
+                outBaseArg.Accepts().LegalFilePath();
+                config.HelpOption();
+
+                config.OnExecute(() =>
+                {
+                    ExtractMapAnim(mapAnimPathArg.Value, outBaseArg.Value);
+                });
+            });
+
             app.VersionOptionFromAssemblyAttributes(System.Reflection.Assembly.GetExecutingAssembly());
             app.HelpOption();
 
@@ -666,6 +683,41 @@ namespace DgfTxmConvert
             using (StreamWriter sw = File.CreateText(mtlPath))
             {
                 converter.ExportTextures(sw, basePath + ".", true);
+            }
+        }
+
+        static void ExtractMapAnim(string mapAnimPath, string basePath = null)
+        {
+            if (basePath == null)
+                basePath = Path.ChangeExtension(mapAnimPath, null);
+            else
+                basePath = Path.Combine(basePath, Path.GetFileNameWithoutExtension(mapAnimPath));
+
+            using DatReader dat = new DatReader(Utils.CheckDecompress(File.OpenRead(mapAnimPath)));
+            // Second entry is texture DAT
+            using DatReader txmDat = new DatReader(new MemoryStream(dat.GetData(1)));
+            using ObjConverter converter = new ObjConverter(txmDat);
+            string mtlPath = basePath + ".mtl";
+            string mtlName = Path.GetFileName(mtlPath);
+            // First entry is a collection of weird PDBs
+            using DatReader pdbDat = new DatReader(new MemoryStream(dat.GetData(0)));
+            for (int i = 0; i < pdbDat.EntriesCount; ++i)
+            {
+                using MemoryStream ms = new MemoryStream(pdbDat.GetData(i));
+                // This is a DAT, but we're going to pretend it's a normal PDB
+                BinaryReader br = new BinaryReader(ms);
+                Pdb pdb = new Pdb();
+                pdb.Read(br);
+                using StreamWriter sw = File.CreateText($"{basePath}.{i}.obj");
+                sw.WriteLine($"mtllib {mtlName}");
+                sw.WriteLine();
+
+                converter.ConvertObj(pdb, sw);
+            }
+
+            using (StreamWriter sw = File.CreateText(mtlPath))
+            {
+                converter.ExportTextures(sw, basePath + ".");
             }
         }
     }
