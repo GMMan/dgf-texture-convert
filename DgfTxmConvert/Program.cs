@@ -168,6 +168,23 @@ namespace DgfTxmConvert
                 });
             });
 
+            app.Command("convert-bg", config =>
+            {
+                config.FullName = "Converts sky dome";
+                config.Description = "Converts sky dome.";
+
+                var bgPathArg = config.Argument("bgPath", "Path of the sky dome pack to extract").IsRequired();
+                bgPathArg.Accepts().ExistingFile();
+                var outBaseArg = config.Argument("outBase", "Directory to write converted files");
+                outBaseArg.Accepts().LegalFilePath();
+                config.HelpOption();
+
+                config.OnExecute(() =>
+                {
+                    ExtractBg(bgPathArg.Value, outBaseArg.Value);
+                });
+            });
+
             app.VersionOptionFromAssemblyAttributes(System.Reflection.Assembly.GetExecutingAssembly());
             app.HelpOption();
 
@@ -603,6 +620,52 @@ namespace DgfTxmConvert
             using (StreamWriter sw = File.CreateText(mtlPath))
             {
                 converter.ExportTextures(sw, basePath + ".");
+            }
+        }
+
+        static void ExtractBg(string bgPath, string basePath = null)
+        {
+            if (basePath == null)
+                basePath = Path.ChangeExtension(bgPath, null);
+            else
+                basePath = Path.Combine(basePath, Path.GetFileNameWithoutExtension(bgPath));
+
+            DatReader dat = new DatReader(Utils.CheckDecompress(File.OpenRead(bgPath)));
+            using ObjConverter converter = new ObjConverter(dat);
+            string mtlPath = basePath + ".mtl";
+            string mtlName = Path.GetFileName(mtlPath);
+            for (int i = 0; i < 3; ++i)
+            {
+                using MemoryStream ms = new MemoryStream(dat.GetData(i));
+                DatReader innerDat = new DatReader(ms);
+                for (int j = 0; j < innerDat.EntriesCount; ++j)
+                {
+                    using BinaryReader br = new BinaryReader(new MemoryStream(innerDat.GetData(j)));
+                    Tdb tdb = new Tdb();
+                    tdb.Read(br);
+
+                    // Remap textures (only known for Windows version, PS2 todo when files obtained)
+                    if (i == 0)
+                    {
+                        tdb.Textures[0].DatIndex = 4;
+                        tdb.Textures[1].DatIndex = 3;
+                    }
+                    else
+                    {
+                        tdb.Textures[0].DatIndex = 5;
+                    }
+
+                    using StreamWriter sw = File.CreateText($"{basePath}.{i}_{j}.obj");
+                    sw.WriteLine($"mtllib {mtlName}");
+                    sw.WriteLine();
+
+                    converter.ConvertObj(tdb, sw);
+                }
+            }
+
+            using (StreamWriter sw = File.CreateText(mtlPath))
+            {
+                converter.ExportTextures(sw, basePath + ".", true);
             }
         }
     }

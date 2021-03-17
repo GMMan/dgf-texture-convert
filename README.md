@@ -24,6 +24,8 @@ option.
 - `convert-trm`: Converts train model file contents to Wavefront OBJ models.
 - `convert-pdb`: Converts other model files to Wavefront OBJ models. Note the
   corresponding texture DAT needs to be supplied as well.
+- `convert-bg`: Converts sky dome to Wavefront OBJ models. Note only the first
+  far texture is extracted.
 
 Other
 -----
